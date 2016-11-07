@@ -114,24 +114,38 @@ class TargetTruth(object):
         self.truth_dir='/project/projectdirs/desi/target/analysis/truth'
         self.dr3_dir='/global/project/projectdirs/cosmo/data/legacysurvey/dr3'
         self.save_dir='/project/projectdirs/desi/users/burleigh/desi/target/analysis/truth'
-    
+   
+    def bricks_in_region(self,rlo=0.,rhi=360.,dlo=0.,dhi=30.):
+        bricks=fits_table(os.path.join(self.dr3_dir,'survey-bricks.fits.gz'))
+        i={}
+        # Loop over 4 corners of each Brick
+        for cnt,(ra,dec) in zip(range(1,5),[('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2')]):
+            if rlo < rhi:
+                keep= (bricks.get(ra) >= rlo) * (bricks.get(ra) <= rhi) *\
+                (bricks.get(dec) >= dlo) * (bricks.get(dec) <= dhi)
+            else: # RA wrap
+                keep= np.logical_or(bricks.get(ra) >= rlo, bricks.get(ra) <= rhi) *\
+                (bricks.get(dec) >= dlo) * (bricks.get(dec) <= dhi)
+            i[str(cnt)]= keep
+            print('corner=%s, number bricks=%d' % (str(cnt),len(bricks.get('ra')[keep])))
+        i= np.any((i['1'],i['2'],i['3'],i['4']),axis=0)
+        print('any corner, number bricks=%d' % len(bricks.get('ra')[i]))
+        names= bricks.get('brickname')[i] 
+        if not len(list(set(names))) == len(names):
+            raise ValueError('Repeated brick names')
+        return names
+
     def cosmos_zphot(self):
         # Data
         cosmos=fits_table(os.path.join(self.truth_dir,'cosmos-zphot.fits.gz'))
-        bricks=fits_table(os.path.join(self.dr3_dir, 'survey-bricks.fits.gz'))
         # Bricks
-        ra_min,ra_max= cosmos.get('ra').min(),cosmos.get('ra').max()
-        dec_min,dec_max= cosmos.get('dec').min(),cosmos.get('dec').max()
-        i=1
-        for ra,dec in [('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2'),]:
-            i*= (bricks.get(ra) > ra_min)*(bricks.get(ra) < ra_max)*\
-                (bricks.get(dec) > dec_min)*(bricks.get(dec) < dec_max)
-        i= np.flatnonzero(i)
+        bnames= self.bricks_in_region(rlo=cosmos.get('ra').min(), rhi=cosmos.get('ra').max(),\
+                                          dlo=cosmos.get('dec').min(),dhi=cosmos.get('dec').max())
         # Tractor Catalogues --> file list
         catlist= os.path.join(self.save_dir,'cosmos_dr3_bricks.txt')
         if not os.path.exists(catlist):
             fout=open(catlist,'w')
-            for b in bricks.get('brickname')[i]:
+            for b in bnames:
                 fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
                 fout.write('%s\n' % fn)
             fout.close()
@@ -153,25 +167,22 @@ class TargetTruth(object):
         # Data
         w1=fits_table(os.path.join(self.truth_dir,'vipers-w1.fits.gz'))
         w4=fits_table(os.path.join(self.truth_dir,'vipers-w4.fits.gz'))
-        bricks=fits_table(os.path.join(self.dr3_dir, 'survey-bricks.fits.gz'))
         # Bricks
         for data in [w1,w4]:
             data.set('ra',data.get('alpha'))
             data.set('dec',data.get('delta'))
-        i=dict(w1=1,w4=1)
+        bnames={}
         for data,key in zip([w1,w4],['w1','w4']):
-            ra_min,ra_max= data.get('ra').min(),data.get('ra').max()
-            dec_min,dec_max= data.get('dec').min(),data.get('dec').max()
-            for ra,dec in [('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2'),]:
-                i[key]*= (bricks.get(ra) > ra_min)*(bricks.get(ra) < ra_max)*\
-                         (bricks.get(dec) > dec_min)*(bricks.get(dec) < dec_max)
-            i[key]= np.flatnonzero(i[key])
-        i= np.concatenate((i['w1'],i['w4'])) 
+            bnames[key]= self.bricks_in_region(rlo=data.get('ra').min(), rhi=data.get('ra').max(),\
+                                              dlo=data.get('dec').min(),dhi=data.get('dec').max())
+        bricks=np.array([])
+        for key in bnames.keys():
+            bricks=np.concatenate((bricks,bnames[key]))
         # Tractor Catalogues --> file list
         catlist= os.path.join(self.save_dir,'vipers_dr3_bricks.txt')
         if not os.path.exists(catlist):
             fout=open(catlist,'w')
-            for b in bricks.get('brickname')[i]:
+            for b in bricks:
                 fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
                 fout.write('%s\n' % fn)
             fout.close()
@@ -202,27 +213,20 @@ class TargetTruth(object):
         deep2={}
         for key in ['1','2','3','4']:
             deep2[key]=fits_table('/project/projectdirs/desi/target/analysis/truth/deep2-field%s.fits.gz' % key)
-        bricks=fits_table('/global/project/projectdirs/cosmo/data/legacysurvey/dr3/survey-bricks.fits.gz')
         # Bricks
-        i={}
+        bnames={}
         for key in deep2.keys():
-            i[key]=1
-        for key in deep2.keys():
-            ra_min,ra_max= deep2[key].get('ra').min(),deep2[key].get('ra').max()
-            dec_min,dec_max= deep2[key].get('dec').min(),deep2[key].get('dec').max()
-            for ra,dec in [('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2'),]:
-                i[key]*= (bricks.get(ra) > ra_min)*(bricks.get(ra) < ra_max)*\
-                         (bricks.get(dec) > dec_min)*(bricks.get(dec) < dec_max)
-            i[key]= np.flatnonzero(i[key])
-            print('Field=%s, Bricks=%d' % (key,len(i[key])))
-        for key in i.keys():
-            print('Field=%s, Bricks:\n' % (key,),bricks.get('brickname')[i[key]])
-        i= np.concatenate((i['1'],i['2'],i['3'],i['4'])) 
+            bnames[key]= self.bricks_in_region(rlo=deep2[key].get('ra').min(), rhi=deep2[key].get('ra').max(),\
+                                              dlo=deep2[key].get('dec').min(),dhi=deep2[key].get('dec').max())
+            print('Field=%s, Num Bricks=%d, Bricks:' % (key,len(bnames[key])), bnames[key])
+        bricks=np.array([])
+        for key in bnames.keys():
+            bricks=np.concatenate((bricks,bnames[key]))
         # Tractor Catalogues --> file list
         catlist= os.path.join(self.save_dir,'deep2_dr3_bricks.txt')
         if not os.path.exists(catlist):
             fout=open(catlist,'w')
-            for b in bricks.get('brickname')[i]:
+            for b in bricks:
                 fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
                 fout.write('%s\n' % fn)
             fout.close()
