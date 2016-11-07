@@ -114,20 +114,26 @@ class TargetTruth(object):
         self.truth_dir='/project/projectdirs/desi/target/analysis/truth'
         self.dr3_dir='/global/project/projectdirs/cosmo/data/legacysurvey/dr3'
         self.save_dir='/project/projectdirs/desi/users/burleigh/desi/target/analysis/truth'
-   
+  
+    def in_region(self,ra,dec, rlo=0.,rhi=360.,dlo=0.,dhi=30.):
+        '''ra,dec are numpy arrays,
+        return indices of ra,dec where they are inside specified region'''
+        if rlo < rhi:
+            return (ra >= rlo) * (ra <= rhi) *\
+                   (dec >= dlo) * (dec <= dhi)
+        else: # RA wrap
+            return np.logical_or(ra >= rlo, ra <= rhi) *\
+                   (dec >= dlo) * (dec <= dhi)
+
     def bricks_in_region(self,rlo=0.,rhi=360.,dlo=0.,dhi=30.):
+        print('rlo=%.2f, rhi=%.2f, dlo=%.2f, dhi=%.2f' % (rlo,rhi,dlo,dhi))
         bricks=fits_table(os.path.join(self.dr3_dir,'survey-bricks.fits.gz'))
         i={}
         # Loop over 4 corners of each Brick
         for cnt,(ra,dec) in zip(range(1,5),[('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2')]):
-            if rlo < rhi:
-                keep= (bricks.get(ra) >= rlo) * (bricks.get(ra) <= rhi) *\
-                (bricks.get(dec) >= dlo) * (bricks.get(dec) <= dhi)
-            else: # RA wrap
-                keep= np.logical_or(bricks.get(ra) >= rlo, bricks.get(ra) <= rhi) *\
-                (bricks.get(dec) >= dlo) * (bricks.get(dec) <= dhi)
-            i[str(cnt)]= keep
-            print('corner=%s, number bricks=%d' % (str(cnt),len(bricks.get('ra')[keep])))
+            i[str(cnt)]= self.in_region(bricks.get(ra),bricks.get(dec),\
+                                        rlo=rlo,rhi=rhi,dlo=dlo,dhi=dhi)
+            print('corner=%s, number bricks=%d' % (str(cnt),len(bricks.get('ra')[ i[str(cnt)] ])))
         i= np.any((i['1'],i['2'],i['3'],i['4']),axis=0)
         print('any corner, number bricks=%d' % len(bricks.get('ra')[i]))
         names= bricks.get('brickname')[i] 
@@ -247,6 +253,46 @@ class TargetTruth(object):
         dr3.writeto(os.path.join(self.save_dir,'dr3-deep2f234matched.fits'))
         print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'deep2f234-dr3matched.fits'),\
                                       os.path.join(self.save_dir,'dr3-deep2f234matched.fits')))
+
+    def qso(self):
+        # Christophe's qso catalogue
+        qso=fits_table(os.path.join(self.save_dir,'CatalogQSO.fits.gz'))
+        # DR7 and boss only
+        keep={}
+        for key in list(set(qso.get('source'))):
+            print('%s: %d' % (key,len(qso[qso.get('source') == key])))
+            keep[key.strip()]= qso.get('source') == key
+        qso.cut( np.logical_or(keep['BOSS'],keep['SDSSDR7QSO']) )
+        # Stripe 82
+        rlo,rhi= 315., 45.
+        dlo,dhi= -1.25, 1.25
+        qso.cut( self.in_region(qso.get('ra'),qso.get('dec'), \
+                                rlo=rlo,rhi=rhi,dlo=dlo,dhi=dhi) )
+        ## Bricks
+        #bricks= self.bricks_in_region(rlo=rlo, rhi=rhi,\
+        #                           dlo=dlo,dhi=dhi)
+        ## Tractor Catalogues --> file list
+        #catlist= os.path.join(self.save_dir,'CatalogQSO_dr3_bricks.txt')
+        #if not os.path.exists(catlist):
+        #    fout=open(catlist,'w')
+        #    for b in bricks:
+        #        fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
+        #        fout.write('%s\n' % fn)
+        #    fout.close()
+        #    print('Wrote %s' % catlist)
+        # Match
+        fits_funcs= CatalogueFuncs()
+        dr3=fits_funcs.stack(os.path.join(self.save_dir,'CatalogQSO_dr3_bricks_tmp.txt'))
+        mat=Matcher()
+        imatch,imiss,d2d= mat.match_within(qso,dr3) #,dist=1./3600)
+        qso.cut(imatch['ref'])
+        dr3.cut(imatch['obs'])
+        fits_funcs.set_extra_data(dr3)
+        # Save
+        qso.writeto(os.path.join(self.save_dir,'qsoCatalogQSO-dr3matched.fits'))
+        dr3.writeto(os.path.join(self.save_dir,'dr3-qsoCatalogQSOmatched.fits'))
+        print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'qsoCatalogQSO-dr3matched.fits'),\
+                                      os.path.join(self.save_dir,'dr3-qsoCatalogQSOmatched.fits')))
 
 
 
