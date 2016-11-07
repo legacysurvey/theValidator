@@ -23,7 +23,11 @@ class CatalogueFuncs(object):
         fns=read_lines(fn_list)
         if len(fns) < 1: raise ValueError('Error: fns=',fns)
         for fn in fns:
-            cats.append( fits_table(fn) )
+            try: 
+                tab= fits_table(fn) 
+                cats.append( tab )
+            except IOError:
+                print('Catalogue does not exist: %s' % fn)
         return merge_tables(cats, columns='fillzero')
     
     def set_extra_data(self,cat):
@@ -192,6 +196,53 @@ class TargetTruth(object):
         dr3.writeto(os.path.join(self.save_dir,'dr3-vipersw1w4matched.fits'))
         print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'vipersw1w4-dr3matched.fits'),\
                                       os.path.join(self.save_dir,'dr3-vipersw1w4matched.fits')))
+
+    def deep2(self):
+        # Data
+        deep2={}
+        for key in ['1','2','3','4']:
+            deep2[key]=fits_table('/project/projectdirs/desi/target/analysis/truth/deep2-field%s.fits.gz' % key)
+        bricks=fits_table('/global/project/projectdirs/cosmo/data/legacysurvey/dr3/survey-bricks.fits.gz')
+        # Bricks
+        i={}
+        for key in deep2.keys():
+            i[key]=1
+        for key in deep2.keys():
+            ra_min,ra_max= deep2[key].get('ra').min(),deep2[key].get('ra').max()
+            dec_min,dec_max= deep2[key].get('dec').min(),deep2[key].get('dec').max()
+            for ra,dec in [('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2'),]:
+                i[key]*= (bricks.get(ra) > ra_min)*(bricks.get(ra) < ra_max)*\
+                         (bricks.get(dec) > dec_min)*(bricks.get(dec) < dec_max)
+            i[key]= np.flatnonzero(i[key])
+            print('Field=%s, Bricks=%d' % (key,len(i[key])))
+        for key in i.keys():
+            print('Field=%s, Bricks:\n' % (key,),bricks.get('brickname')[i[key]])
+        i= np.concatenate((i['1'],i['2'],i['3'],i['4'])) 
+        # Tractor Catalogues --> file list
+        catlist= os.path.join(self.save_dir,'deep2_dr3_bricks.txt')
+        if not os.path.exists(catlist):
+            fout=open(catlist,'w')
+            for b in bricks.get('brickname')[i]:
+                fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
+                fout.write('%s\n' % fn)
+            fout.close()
+            print('Wrote %s' % catlist)
+        # Merge for matching
+        dp2= [deep2['2'],deep2['3'],deep2['4']]
+        dp2= merge_tables(dp2, columns='fillzero')
+        # Match
+        fits_funcs= CatalogueFuncs()
+        dr3=fits_funcs.stack(os.path.join(self.save_dir,'deep2_dr3_bricks.txt'))
+        mat=Matcher()
+        imatch,imiss,d2d= mat.match_within(dp2,dr3) #,dist=1./3600)
+        dp2.cut(imatch['ref'])
+        dr3.cut(imatch['obs'])
+        fits_funcs.set_extra_data(dr3)
+        # Save
+        dp2.writeto(os.path.join(self.save_dir,'deep2f234-dr3matched.fits'))
+        dr3.writeto(os.path.join(self.save_dir,'dr3-deep2f234matched.fits'))
+        print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'deep2f234-dr3matched.fits'),\
+                                      os.path.join(self.save_dir,'dr3-deep2f234matched.fits')))
 
 
 
