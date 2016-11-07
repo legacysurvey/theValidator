@@ -145,6 +145,54 @@ class TargetTruth(object):
         print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'cosmos-zphot-dr3matched.fits'),\
                                       os.path.join(self.save_dir,'dr3-cosmoszphotmatched.fits')))
 
+    def vipers(self):
+        # Data
+        w1=fits_table(os.path.join(self.truth_dir,'vipers-w1.fits.gz'))
+        w4=fits_table(os.path.join(self.truth_dir,'vipers-w4.fits.gz'))
+        bricks=fits_table(os.path.join(self.dr3_dir, 'survey-bricks.fits.gz'))
+        # Bricks
+        for data in [w1,w4]:
+            data.set('ra',data.get('alpha'))
+            data.set('dec',data.get('delta'))
+        i=dict(w1=1,w4=1)
+        for data,key in zip([w1,w4],['w1','w4']):
+            ra_min,ra_max= data.get('ra').min(),data.get('ra').max()
+            dec_min,dec_max= data.get('dec').min(),data.get('dec').max()
+            for ra,dec in [('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2'),]:
+                i[key]*= (bricks.get(ra) > ra_min)*(bricks.get(ra) < ra_max)*\
+                         (bricks.get(dec) > dec_min)*(bricks.get(dec) < dec_max)
+            i[key]= np.flatnonzero(i[key])
+        i= np.concatenate((i['w1'],i['w4'])) 
+        # Tractor Catalogues --> file list
+        catlist= os.path.join(self.save_dir,'vipers_dr3_bricks.txt')
+        if not os.path.exists(catlist):
+            fout=open(catlist,'w')
+            for b in bricks.get('brickname')[i]:
+                fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
+                fout.write('%s\n' % fn)
+            fout.close()
+            print('Wrote %s' % catlist)
+        # Merge w1,w4 for matching
+        vipers= []
+        for fn in [os.path.join(self.truth_dir,'vipers-w1.fits.gz'),\
+                   os.path.join(self.truth_dir,'vipers-w4.fits.gz')]:
+            vipers.append( fits_table(fn) )
+        vipers= merge_tables(vipers, columns='fillzero')
+        vipers.set('ra',data.get('alpha'))
+        vipers.set('dec',data.get('delta'))
+        # Match
+        fits_funcs= CatalogueFuncs()
+        dr3=fits_funcs.stack(os.path.join(self.save_dir,'vipers_dr3_bricks.txt'))
+        mat=Matcher()
+        imatch,imiss,d2d= mat.match_within(vipers,dr3) #,dist=1./3600)
+        vipers.cut(imatch['ref'])
+        dr3.cut(imatch['obs'])
+        # Save
+        vipers.writeto(os.path.join(self.save_dir,'vipersw1w4-dr3matched.fits'))
+        dr3.writeto(os.path.join(self.save_dir,'dr3-vipersw1w4matched.fits'))
+        print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'vipersw1w4-dr3matched.fits'),\
+                                      os.path.join(self.save_dir,'dr3-vipersw1w4matched.fits')))
+
 
 
 
