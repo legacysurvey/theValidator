@@ -1,4 +1,4 @@
-
+from __future__ import print_function
 import numpy as np
 import fitsio
 import glob
@@ -102,4 +102,50 @@ class Matcher(object):
             dist[str(nn)]= np.array(d2d)[b]
             print("within 1arcsec, nn=%d, %d/%d" % (nn,ref_nn[str(nn)].size,len(ref)))
         return ref_nn,obs_nn,dist
- 
+
+class TargetTruth(object):
+    '''Build Target Truth catalogues, matching to DR3
+    '''
+    def __init__(self):
+        self.truth_dir='/project/projectdirs/desi/target/analysis/truth'
+        self.dr3_dir='/global/project/projectdirs/cosmo/data/legacysurvey/dr3'
+        self.save_dir='/project/projectdirs/desi/users/burleigh/desi/target/analysis/truth'
+    
+    def cosmos_zphot(self):
+        # Data
+        cosmos=fits_table(os.path.join(self.truth_dir,'cosmos-zphot.fits.gz'))
+        bricks=fits_table(os.path.join(self.dr3_dir, 'survey-bricks.fits.gz'))
+        # Bricks
+        ra_min,ra_max= cosmos.get('ra').min(),cosmos.get('ra').max()
+        dec_min,dec_max= cosmos.get('dec').min(),cosmos.get('dec').max()
+        i=1
+        for ra,dec in [('ra1','dec1'),('ra1','dec2'),('ra2','dec1'),('ra2','dec2'),]:
+            i*= (bricks.get(ra) > ra_min)*(bricks.get(ra) < ra_max)*\
+                (bricks.get(dec) > dec_min)*(bricks.get(dec) < dec_max)
+        i= np.flatnonzero(i)
+        # Tractor Catalogues --> file list
+        catlist= os.path.join(self.save_dir,'cosmos_dr3_bricks.txt')
+        if not os.path.exists(catlist):
+            fout=open(catlist,'w')
+            for b in bricks.get('brickname')[i]:
+                fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
+                fout.write('%s\n' % fn)
+            fout.close()
+            print('Wrote %s' % catlist)
+        # Match
+        fits_funcs= CatalogueFuncs()
+        dr3=fits_funcs.stack(os.path.join(self.save_dir,'cosmos_dr3_bricks.txt'))
+        mat=Matcher()
+        imatch,imiss,d2d= mat.match_within(cosmos,dr3) #,dist=1./3600)
+        cosmos.cut(imatch['ref'])
+        dr3.cut(imatch['obs'])
+        # Save
+        cosmos.writeto(os.path.join(self.save_dir,'cosmos-zphot-dr3matched.fits'))
+        dr3.writeto(os.path.join(self.save_dir,'dr3-cosmoszphotmatched.fits'))
+        print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'cosmos-zphot-dr3matched.fits'),\
+                                      os.path.join(self.save_dir,'dr3-cosmoszphotmatched.fits')))
+
+
+
+
+
