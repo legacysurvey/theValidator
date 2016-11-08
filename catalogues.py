@@ -34,7 +34,7 @@ class CatalogueFuncs(object):
         '''adds columns to fits_table cat'''
         # Remove white spaces
         cat.set('type', np.char.strip(cat.get('type')))
-        # AB Mags
+        # DECam AB Mags
         shp=cat.get('decam_flux').shape
         mag,mag_sigma= np.zeros(shp),np.zeros(shp)
         for iband in range(shp[1]):
@@ -42,6 +42,16 @@ class CatalogueFuncs(object):
                         cat.get('decam_flux')[:,iband], cat.get('decam_flux_ivar')[:,iband])
         cat.set('decam_mag',mag)
         cat.set('decam_mag_ivar',1./np.power(mag_sigma,2))
+        # WISE AB Mags
+        shp=cat.get('wise_flux').shape
+        mag,mag_sigma= np.zeros(shp),np.zeros(shp)
+        for iband in range(shp[1]):
+            mag[:,iband],mag_sigma[:,iband]=NanoMaggies.fluxErrorsToMagErrors(\
+                        cat.get('wise_flux')[:,iband], cat.get('wise_flux_ivar')[:,iband])
+        cat.set('wise_mag',mag)
+        cat.set('wise_mag_ivar',1./np.power(mag_sigma,2))
+        
+
         
 class Cuts4MatchedCats(object):
     '''Cuts for MATCHED cats only'''
@@ -268,20 +278,21 @@ class TargetTruth(object):
         dlo,dhi= -1.25, 1.25
         qso.cut( self.in_region(qso.get('ra'),qso.get('dec'), \
                                 rlo=rlo,rhi=rhi,dlo=dlo,dhi=dhi) )
-        ## Bricks
-        #bricks= self.bricks_in_region(rlo=rlo, rhi=rhi,\
-        #                           dlo=dlo,dhi=dhi)
-        ## Tractor Catalogues --> file list
-        #catlist= os.path.join(self.save_dir,'CatalogQSO_dr3_bricks.txt')
-        #if not os.path.exists(catlist):
-        #    fout=open(catlist,'w')
-        #    for b in bricks:
-        #        fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
-        #        fout.write('%s\n' % fn)
-        #    fout.close()
-        #    print('Wrote %s' % catlist)
+        # Bricks
+        bricks= self.bricks_in_region(rlo=rlo, rhi=rhi,\
+                                   dlo=dlo,dhi=dhi)
+        # Tractor Catalogues --> file list
+        catlist= os.path.join(self.save_dir,'CatalogQSO_dr3_bricks.txt')
+        if not os.path.exists(catlist):
+            fout=open(catlist,'w')
+            for b in bricks:
+                fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
+                fout.write('%s\n' % fn)
+            fout.close()
+            print('Wrote %s' % catlist)
         # Match
         fits_funcs= CatalogueFuncs()
+        #dr3=fits_funcs.stack(os.path.join(self.save_dir,'CatalogQSO_dr3_bricks.txt'))
         dr3=fits_funcs.stack(os.path.join(self.save_dir,'CatalogQSO_dr3_bricks_tmp.txt'))
         mat=Matcher()
         imatch,imiss,d2d= mat.match_within(qso,dr3) #,dist=1./3600)
