@@ -1,7 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import fitsio
-import glob
+from glob import glob
 import os
 from astropy import units
 from astropy.coordinates import SkyCoord
@@ -17,17 +17,21 @@ def read_lines(fn_list):
 
 class CatalogueFuncs(object):
     '''funcs for using Dustins fits_table objects'''
-    def stack(self,fn_list):
+    def stack(self,fn_list,textfile=True):
         '''concatenates fits tables'''
-        cats= []
-        fns=read_lines(fn_list)
+        if textfile: 
+            fns=read_lines(fn_list)
+        else:
+            fns= fn_list
         if len(fns) < 1: raise ValueError('Error: fns=',fns)
-        for fn in fns:
+        cats= []
+        for i,fn in enumerate(fns):
+            print('reading %d/%d' % (i+1,len(fns)))
             try: 
                 tab= fits_table(fn) 
                 cats.append( tab )
             except IOError:
-                print('Catalogue does not exist: %s' % fn)
+                print('Fits file does not exist: %s' % fn)
         return merge_tables(cats, columns='fillzero')
     
     def set_extra_data(self,cat):
@@ -136,7 +140,7 @@ class TargetTruth(object):
                    (dec >= dlo) * (dec <= dhi)
 
     def bricks_in_region(self,rlo=0.,rhi=360.,dlo=0.,dhi=30.):
-        print('rlo=%.2f, rhi=%.2f, dlo=%.2f, dhi=%.2f' % (rlo,rhi,dlo,dhi))
+        print('Region: rlo=%.2f, rhi=%.2f, dlo=%.2f, dhi=%.2f' % (rlo,rhi,dlo,dhi))
         bricks=fits_table(os.path.join(self.dr3_dir,'survey-bricks.fits.gz'))
         i={}
         # Loop over 4 corners of each Brick
@@ -150,6 +154,38 @@ class TargetTruth(object):
         if not len(list(set(names))) == len(names):
             raise ValueError('Repeated brick names')
         return names
+
+    def sweep_corner2radec(self,text='000m005'):
+        ra,dec= float(text[:3]),float(text[4:])
+        if text[3] == 'm': 
+            dec*= -1
+        return ra,dec
+
+    def sweeps_in_region(self,rlo=0.,rhi=360.,dlo=0.,dhi=30.):
+        print('Region: rlo=%.2f, rhi=%.2f, dlo=%.2f, dhi=%.2f' % (rlo,rhi,dlo,dhi))
+        fns=glob(os.path.join(self.dr3_dir,'sweep/3.0/','sweep-*.fits'))
+        fns=np.array(fns)
+        assert(len(fns) > 0)
+        # Loop over sweep regions
+        # Ask if any corner of each region is in the region we are interested in
+        keep=np.zeros(len(fns)).astype(bool)
+        for cnt,fn in enumerate(fns):
+            left,right= os.path.basename(fn).split('.')[0].split('-')[1:]
+            ra1,dec1= self.sweep_corner2radec(text=left)
+            ra2,dec2= self.sweep_corner2radec(text=right)
+            # Loop over the 4 corners
+            b=False
+            for ra,dec in [(ra1,dec1),(ra1,dec2),(ra2,dec1),(ra2,dec2)]:
+                b= np.logical_or(b, self.in_region(ra,dec,\
+                                                   rlo=rlo,rhi=rhi,dlo=dlo,dhi=dhi)
+                                 )
+            if b:
+                print(ra1,'-->',ra2,'  ',dec1,'-->',dec2)
+                keep[cnt]= True
+        if not len(fns[keep]) > 0:
+            raise ValueError('Something amiss, no sweeps overlap region')
+        print('%d/%d sweeps in the region' % (len(fns[keep]),len(fns)))
+        return fns[keep] 
 
     def cosmos_zphot(self):
         # Data
@@ -279,31 +315,31 @@ class TargetTruth(object):
         qso.cut( self.in_region(qso.get('ra'),qso.get('dec'), \
                                 rlo=rlo,rhi=rhi,dlo=dlo,dhi=dhi) )
         # Bricks
-        bricks= self.bricks_in_region(rlo=rlo, rhi=rhi,\
-                                   dlo=dlo,dhi=dhi)
+        sweeps= self.sweeps_in_region(rlo=rlo, rhi=rhi,\
+                                      dlo=dlo,dhi=dhi)
         # Tractor Catalogues --> file list
-        catlist= os.path.join(self.save_dir,'CatalogQSO_dr3_bricks.txt')
-        if not os.path.exists(catlist):
-            fout=open(catlist,'w')
-            for b in bricks:
-                fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
-                fout.write('%s\n' % fn)
-            fout.close()
-            print('Wrote %s' % catlist)
+        #catlist= os.path.join(self.save_dir,'CatalogQSO_dr3_sweeps.txt')
+        #if not os.path.exists(catlist):
+        #    fout=open(catlist,'w')
+        #    for b in bricks:
+        #        fn= os.path.join(self.dr3_dir,'tractor/%s/tractor-%s.fits' % (b[:3],b))
+        #        fout.write('%s\n' % fn)
+        #    fout.close()
+        #    print('Wrote %s' % catlist)
         # Match
         fits_funcs= CatalogueFuncs()
         #dr3=fits_funcs.stack(os.path.join(self.save_dir,'CatalogQSO_dr3_bricks.txt'))
-        dr3=fits_funcs.stack(os.path.join(self.save_dir,'CatalogQSO_dr3_bricks_tmp.txt'))
+        dr3=fits_funcs.stack(sweeps,textfile=False)
         mat=Matcher()
         imatch,imiss,d2d= mat.match_within(qso,dr3) #,dist=1./3600)
         qso.cut(imatch['ref'])
         dr3.cut(imatch['obs'])
         fits_funcs.set_extra_data(dr3)
         # Save
-        qso.writeto(os.path.join(self.save_dir,'qsoCatalogQSO-dr3matched.fits'))
-        dr3.writeto(os.path.join(self.save_dir,'dr3-qsoCatalogQSOmatched.fits'))
-        print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'qsoCatalogQSO-dr3matched.fits'),\
-                                      os.path.join(self.save_dir,'dr3-qsoCatalogQSOmatched.fits')))
+        qso.writeto(os.path.join(self.save_dir,'qso-dr3sweepmatched.fits'))
+        dr3.writeto(os.path.join(self.save_dir,'dr3-qsosweepmatched.fits'))
+        print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'qso-dr3sweepmatched.fits'),\
+                                      os.path.join(self.save_dir,'dr3-qsosweepmatched.fits')))
 
 
 
