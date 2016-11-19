@@ -33,28 +33,63 @@ class CatalogueFuncs(object):
             except IOError:
                 print('Fits file does not exist: %s' % fn)
         return merge_tables(cats, columns='fillzero')
-    
-    def set_extra_data(self,cat):
+
+    def set_mags(self,cat):
         '''adds columns to fits_table cat'''
         # Remove white spaces
         cat.set('type', np.char.strip(cat.get('type')))
-        # DECam AB Mags
+        # AB mags
+        # Two kinds, as observed (including dust) and instrinsic (dust removed)
+        for whichmag in ['wdust','nodust']:
+            # DECam
+            shp=cat.get('decam_flux').shape
+            mag,mag_err= np.zeros(shp),np.zeros(shp)
+            for iband in range(shp[1]):
+                if whichmag == 'wdust':
+                    flux= cat.get('decam_flux')[:,iband]
+                    flux_ivar= cat.get('decam_flux_ivar')[:,iband]
+                elif whichmag == 'nodust':
+                    flux= cat.get('decam_flux')[:,iband]/cat.get('decam_mw_transmission')[:,iband]
+                    flux_ivar= cat.get('decam_flux_ivar')[:,iband]*\
+                                np.power(cat.get('decam_mw_transmission')[:,iband],2)
+                else: raise ValueError()
+                mag[:,iband],mag_err[:,iband]=NanoMaggies.fluxErrorsToMagErrors(flux, flux_ivar)
+            cat.set('decam_mag_%s' % whichmag,mag)
+            cat.set('decam_mag_ivar_%s' % whichmag,1./np.power(mag_err,2))
+            # WISE 
+            shp=cat.get('wise_flux').shape
+            mag,mag_err= np.zeros(shp),np.zeros(shp)
+            for iband in range(shp[1]):
+                if whichmag == 'wdust':
+                    flux= cat.get('wise_flux')[:,iband]
+                    flux_ivar= cat.get('wise_flux_ivar')[:,iband]
+                elif whichmag == 'nodust':
+                    flux= cat.get('wise_flux')[:,iband]/cat.get('wise_mw_transmission')[:,iband]
+                    flux_ivar= cat.get('wise_flux_ivar')[:,iband]*\
+                                np.power(cat.get('wise_mw_transmission')[:,iband],2)
+                mag[:,iband],mag_err[:,iband]=NanoMaggies.fluxErrorsToMagErrors(flux, flux_ivar)
+            cat.set('wise_mag_%s' % whichmag,mag)
+            cat.set('wise_mag_ivar_%s' % whichmag,1./np.power(mag_err,2))
+        # Instrinsic fluxes
+        whichmag='nodust'
+        # DECam
         shp=cat.get('decam_flux').shape
-        mag,mag_sigma= np.zeros(shp),np.zeros(shp)
+        flux,flux_ivar= np.zeros(shp),np.zeros(shp)
         for iband in range(shp[1]):
-            mag[:,iband],mag_sigma[:,iband]=NanoMaggies.fluxErrorsToMagErrors(\
-                        cat.get('decam_flux')[:,iband], cat.get('decam_flux_ivar')[:,iband])
-        cat.set('decam_mag',mag)
-        cat.set('decam_mag_ivar',1./np.power(mag_sigma,2))
-        # WISE AB Mags
+            flux[:,iband]= cat.get('decam_flux')[:,iband]/cat.get('decam_mw_transmission')[:,iband]
+            flux_ivar[:,iband]= cat.get('decam_flux_ivar')[:,iband]*\
+                                    np.power(cat.get('decam_mw_transmission')[:,iband],2)
+        cat.set('decam_flux_%s' % whichmag,flux)
+        cat.set('decam_flux_ivar_%s' % whichmag,flux_ivar)
+        # WISE 
         shp=cat.get('wise_flux').shape
-        mag,mag_sigma= np.zeros(shp),np.zeros(shp)
+        flux,flux_err= np.zeros(shp),np.zeros(shp)
         for iband in range(shp[1]):
-            mag[:,iband],mag_sigma[:,iband]=NanoMaggies.fluxErrorsToMagErrors(\
-                        cat.get('wise_flux')[:,iband], cat.get('wise_flux_ivar')[:,iband])
-        cat.set('wise_mag',mag)
-        cat.set('wise_mag_ivar',1./np.power(mag_sigma,2))
-        
+            flux[:,iband]= cat.get('wise_flux')[:,iband]/cat.get('wise_mw_transmission')[:,iband]
+            flux_ivar[:,iband]= cat.get('wise_flux_ivar')[:,iband]*\
+                                    np.power(cat.get('wise_mw_transmission')[:,iband],2)
+        cat.set('wise_flux_%s' % whichmag,flux)
+        cat.set('wise_flux_ivar_%s' % whichmag,flux_ivar)
 
         
 class Cuts4MatchedCats(object):
@@ -317,6 +352,8 @@ class TargetTruth(object):
         # Bricks
         sweeps= self.sweeps_in_region(rlo=rlo, rhi=rhi,\
                                       dlo=dlo,dhi=dhi)
+        print('sweeps= ',sweeps)
+        sys.exit('early')
         # Tractor Catalogues --> file list
         #catlist= os.path.join(self.save_dir,'CatalogQSO_dr3_sweeps.txt')
         #if not os.path.exists(catlist):
