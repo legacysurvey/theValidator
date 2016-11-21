@@ -147,7 +147,7 @@ class Kaylans(object):
         # Bin up SN values
         bin_SN={}
         for band,iband in zip(['g','r','z'],[1,2,4]):
-            bin_SN[band]= bin_up(tractor.get('decam_mag')[:,iband], \
+            bin_SN[band]= bin_up(tractor.get('decam_mag_nodust')[:,iband], \
                            tractor.get('decam_flux')[:,iband]*np.sqrt(tractor.get('decam_flux_ivar')[:,iband]),\
                            bin_minmax=mag_minmax)
         #setup plot
@@ -272,8 +272,8 @@ class Kaylans(object):
         cm_stack,stack_names=[],[]
         iband= dict(g=1,r=2,z=4)[band]
         for magmin,magmax in zip([18,20,22,23.5],[20,22,23.5,24.5]):
-            band_and_type= (ref_matched.get('decam_mag')[:,iband] > magmin)* \
-                           (ref_matched.get('decam_mag')[:,iband] <= magmax)*\
+            band_and_type= (ref_matched.get('decam_mag_nodust')[:,iband] > magmin)* \
+                           (ref_matched.get('decam_mag_nodust')[:,iband] <= magmax)*\
                            (ref_matched.get('type') == mytype)
             stack_names+= ["%s: %.1f < %s < %.1f" % (mytype,magmin,band,magmax)]
             cm,ans_names,all_names= self.create_stack(ans=ref_matched.get('type')[band_and_type],\
@@ -318,8 +318,8 @@ class Kaylans(object):
             stats=dict(g=0,r=0,z=0)
             # Counts per bin
             for band,iband in zip(['g','r','z'],[1,2,4]):
-                imag= np.all((b_low <= ref_tractor.get('decam_mag')[:,iband],\
-                              ref_tractor.get('decam_mag')[:,iband] < b_hi),axis=0)
+                imag= np.all((b_low <= ref_tractor.get('decam_mag_nodust')[:,iband],\
+                              ref_tractor.get('decam_mag_nodust')[:,iband] < b_hi),axis=0)
                 hist[band],bins= np.histogram(chi[band][imag],\
                                         range=(low,hi),bins=50,normed=True)
                 db= (bins[1:]-bins[:-1])/2
@@ -354,8 +354,8 @@ class Kaylans(object):
         fig,ax=plt.subplots(1,3,figsize=(12,3),sharey=True)
         plt.subplots_adjust(wspace=0.2)
         for cnt,iband in zip(range(3),[1,2,4]):
-            delta= ref_tractor.get('decam_mag')[:,iband] - test_tractor.get('decam_mag')[:,iband]
-            ax[cnt].scatter(ref_tractor.get('decam_mag')[:,iband],delta,\
+            delta= ref_tractor.get('decam_mag_nodust')[:,iband] - test_tractor.get('decam_mag_nodust')[:,iband]
+            ax[cnt].scatter(ref_tractor.get('decam_mag_nodust')[:,iband],delta,\
                             c='none',facecolors='none',edgecolors='b',s=2,marker='o') 
         for cnt,band,maglim in zip(range(3),['g','r','z'],[24.5,23.5,22.]):
             xlab=ax[cnt].set_xlabel('%s (%s)' % (band,ref_name), **kwargs.ax)
@@ -376,7 +376,7 @@ class Kaylans(object):
     #    for band,iband,req in zip(['g','r','z'],[1,2,4],req_mags):
     #        bin_nd[band]={}
     #        bins= np.linspace(18.,req,num=15)
-    #        bin_nd[band]['cnt'],junk= np.histogram(obj.t['decam_mag'][:,iband], bins=bins)
+    #        bin_nd[band]['cnt'],junk= np.histogram(obj.t['decam_mag_nodust'][:,iband], bins=bins)
     #        bin_nd[band]['binc']= (bins[1:]+bins[:-1])/2.
     #        # bins and junk should be identical arrays
     #        assert( np.all(np.all((bins,junk),axis=0)) )
@@ -461,8 +461,8 @@ class EnriqueCosmos(object):
             wb ={"g":1,"r":2,"z":4}
             w = int(wb[band])
             print "band,w=", band,w,N1,N2
-            mag_dr2 = dr2.get('decam_mag')
-            mag_dr3 = dr3.get('decam_mag')
+            mag_dr2 = dr2.get('decam_mag_nodust')
+            mag_dr3 = dr3.get('decam_mag_nodust')
             mag_mean = 22.5 - 2.5 * np.log10((dr2.get('decam_flux')[:,w] + dr3.get('decam_flux')[:,w])/2.)
 
             iv_dr2 = dr2.get('decam_flux_ivar')[:,w]
@@ -614,8 +614,8 @@ class Dustins(object):
                                       ref_name=ref_name,obs_name=obs_name,savefig=savefig)
             self.stephist(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
                                       ref_name=ref_name,obs_name=obs_name,savefig=savefig)
-            self.curvehist(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
-                                      ref_name=ref_name,obs_name=obs_name,savefig=savefig)
+            #self.curvehist(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
+            #                          ref_name=ref_name,obs_name=obs_name,savefig=savefig)
 
     def match_distance(self,dist,range=(0,1),prefix='',savefig=False):
         fig,ax=plt.subplots()
@@ -658,7 +658,7 @@ class Dustins(object):
             K = np.flatnonzero(self.cuts.good[band])
             P = np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2)  
 
-            mag1, magerr1 = matched1.decam_mag[:,iband],1./np.sqrt(matched1.decam_mag_ivar[:,iband])
+            mag1, magerr1 = matched1.decam_mag_nodust[:,iband],1./np.sqrt(matched1.decam_mag_ivar_nodust[:,iband])
 
             iv1 = matched1.decam_flux_ivar[:, iband]
             iv2 = matched2.decam_flux_ivar[:, iband]
@@ -684,7 +684,7 @@ class Dustins(object):
         fig,ax= plt.subplots(1,3)
         lp,lt = [],[]
         for cnt,iband,band,cc in [(0,1,'g','g'),(1,2,'r','r'),(2,4,'z','m')]:        
-            mag1, magerr1 = matched1.decam_mag[:,iband],1./np.sqrt(matched1.decam_mag_ivar[:,iband])
+            mag1, magerr1 = matched1.decam_mag_nodust[:,iband],1./np.sqrt(matched1.decam_mag_ivar_nodust[:,iband])
 
             iv1 = matched1.decam_flux_ivar[:, iband]
             iv2 = matched2.decam_flux_ivar[:, iband]

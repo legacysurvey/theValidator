@@ -56,20 +56,21 @@ class CatalogueFuncs(object):
                 mag[:,iband],mag_err[:,iband]=NanoMaggies.fluxErrorsToMagErrors(flux, flux_ivar)
             cat.set('decam_mag_%s' % whichmag,mag)
             cat.set('decam_mag_ivar_%s' % whichmag,1./np.power(mag_err,2))
-            # WISE 
-            shp=cat.get('wise_flux').shape
-            mag,mag_err= np.zeros(shp),np.zeros(shp)
-            for iband in range(shp[1]):
-                if whichmag == 'wdust':
-                    flux= cat.get('wise_flux')[:,iband]
-                    flux_ivar= cat.get('wise_flux_ivar')[:,iband]
-                elif whichmag == 'nodust':
-                    flux= cat.get('wise_flux')[:,iband]/cat.get('wise_mw_transmission')[:,iband]
-                    flux_ivar= cat.get('wise_flux_ivar')[:,iband]*\
-                                np.power(cat.get('wise_mw_transmission')[:,iband],2)
-                mag[:,iband],mag_err[:,iband]=NanoMaggies.fluxErrorsToMagErrors(flux, flux_ivar)
-            cat.set('wise_mag_%s' % whichmag,mag)
-            cat.set('wise_mag_ivar_%s' % whichmag,1./np.power(mag_err,2))
+            # WISE
+            if 'wise_flux' in cat.get_columns(): 
+                shp=cat.get('wise_flux').shape
+                mag,mag_err= np.zeros(shp),np.zeros(shp)
+                for iband in range(shp[1]):
+                    if whichmag == 'wdust':
+                        flux= cat.get('wise_flux')[:,iband]
+                        flux_ivar= cat.get('wise_flux_ivar')[:,iband]
+                    elif whichmag == 'nodust':
+                        flux= cat.get('wise_flux')[:,iband]/cat.get('wise_mw_transmission')[:,iband]
+                        flux_ivar= cat.get('wise_flux_ivar')[:,iband]*\
+                                    np.power(cat.get('wise_mw_transmission')[:,iband],2)
+                    mag[:,iband],mag_err[:,iband]=NanoMaggies.fluxErrorsToMagErrors(flux, flux_ivar)
+                cat.set('wise_mag_%s' % whichmag,mag)
+                cat.set('wise_mag_ivar_%s' % whichmag,1./np.power(mag_err,2))
         # Instrinsic fluxes
         whichmag='nodust'
         # DECam
@@ -82,14 +83,15 @@ class CatalogueFuncs(object):
         cat.set('decam_flux_%s' % whichmag,flux)
         cat.set('decam_flux_ivar_%s' % whichmag,flux_ivar)
         # WISE 
-        shp=cat.get('wise_flux').shape
-        flux,flux_err= np.zeros(shp),np.zeros(shp)
-        for iband in range(shp[1]):
-            flux[:,iband]= cat.get('wise_flux')[:,iband]/cat.get('wise_mw_transmission')[:,iband]
-            flux_ivar[:,iband]= cat.get('wise_flux_ivar')[:,iband]*\
-                                    np.power(cat.get('wise_mw_transmission')[:,iband],2)
-        cat.set('wise_flux_%s' % whichmag,flux)
-        cat.set('wise_flux_ivar_%s' % whichmag,flux_ivar)
+        if 'wise_flux' in cat.get_columns(): 
+            shp=cat.get('wise_flux').shape
+            flux,flux_err= np.zeros(shp),np.zeros(shp)
+            for iband in range(shp[1]):
+                flux[:,iband]= cat.get('wise_flux')[:,iband]/cat.get('wise_mw_transmission')[:,iband]
+                flux_ivar[:,iband]= cat.get('wise_flux_ivar')[:,iband]*\
+                                        np.power(cat.get('wise_mw_transmission')[:,iband],2)
+            cat.set('wise_flux_%s' % whichmag,flux)
+            cat.set('wise_flux_ivar_%s' % whichmag,flux_ivar)
 
         
 class Cuts4MatchedCats(object):
