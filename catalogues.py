@@ -141,6 +141,17 @@ class Matcher(object):
         imiss['obs'] = np.delete(np.arange(len(obs)), imatch['obs'], axis=0)
         return imatch,imiss,d2d
 
+    def nearest_neighbor(self,ref):
+        '''return indices of nearest nearsest and distances to them'''
+        cat1 = SkyCoord(ra=ref.get('ra')*units.degree, dec=ref.get('dec')*units.degree)
+        cat2 = SkyCoord(ra=ref.get('ra')*units.degree, dec=ref.get('dec')*units.degree)
+        idx, d2d, d3d = cat1.match_to_catalog_3d(cat2,nthneighbor=2)
+        #b= np.array(d2d) <= within
+        ref_nn= np.arange(len(ref))
+        obs_nn= np.array(idx)
+        dist= np.array(d2d)
+        return ref_nn,obs_nn,dist
+
     def nearest_neighbors_within(self,ref,obs,within=1./3600,min_nn=1,max_nn=5):
         '''Find obs ra,dec that are within dist of ref ra,dec
         default=1 arcsec'''
