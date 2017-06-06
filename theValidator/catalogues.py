@@ -42,6 +42,37 @@ class CatalogueFuncs(object):
         # Two kinds, as observed (including dust) and instrinsic (dust removed)
         for whichmag in ['wdust','nodust']:
             # DECam
+            for band in ['g','r','z','w1','w2']:
+                if whichmag == 'wdust':
+                    flux= cat.get('flux_%s' % band)
+                    flux_ivar= cat.get('flux_ivar_%s' % band)
+                elif whichmag == 'nodust':
+                    flux= cat.get('flux_%s' % band)/cat.get('mw_transmission_%s' % band)
+                    flux_ivar= cat.get('flux_ivar_%s' % band)*\
+                                np.power(cat.get('mw_transmission_%s' % band),2)
+                else: raise ValueError()
+                mag,mag_err= NanoMaggies.fluxErrorsToMagErrors(flux, flux_ivar)
+                cat.set('mag_%s_%s' % (whichmag,band),mag)
+                cat.set('mag_ivar_%s_%s' % (whichmag,band),1./np.power(mag_err,2))
+        # Instrinsic fluxes
+        whichmag='nodust'
+        # DECam
+        for band in ['g','r','z','w1','w2']:
+            flux= cat.get('flux_%s' % band)/cat.get('mw_transmission_%s' % band)
+            flux_ivar= cat.get('flux_ivar_%s' % band)*\
+                                    np.power(cat.get('mw_transmission_%s' % band),2)
+        cat.set('flux_%s_%s' % (whichmag,band),flux)
+        cat.set('flux_ivar_%s_%s' % (whichmag,band),flux_ivar)
+
+    def set_mags_OldDataModel(self,cat):
+        '''for tractor catalogues with columns like decam_flux.shape(many,6)
+        adds columns to fits_table cat'''
+        # Remove white spaces
+        cat.set('type', np.char.strip(cat.get('type')))
+        # AB mags
+        # Two kinds, as observed (including dust) and instrinsic (dust removed)
+        for whichmag in ['wdust','nodust']:
+            # DECam
             shp=cat.get('decam_flux').shape
             mag,mag_err= np.zeros(shp),np.zeros(shp)
             for iband in range(shp[1]):
@@ -100,11 +131,11 @@ class Cuts4MatchedCats(object):
         self.psf1 = (matched1.get('type') == 'PSF')
         self.psf2 = (matched2.get('type') == 'PSF')
         # Band dependent
-        bands='ugrizY'
+        bands='grz'
         self.good={}
         for band,iband in zip(bands,range(6)):
-            self.good[band]= ((matched1.decam_flux_ivar[:,iband] > 0) *\
-                              (matched2.decam_flux_ivar[:,iband] > 0))      
+            self.good[band]= ((matched1.get('flux_ivar_%s' % band) > 0) *\
+                              (matched2.get('flux_ivar_%s' % band) > 0))      
         
 
 #     def get_mags(self,cat):

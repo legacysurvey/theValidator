@@ -11,7 +11,7 @@ import numpy as np
 import scipy.stats
 
 from tractor.brightness import NanoMaggies
-#import statsmodels.api as sm
+import statsmodels.api as sm
 from scipy.optimize import curve_fit
 
 from catalogues import Cuts4MatchedCats
@@ -84,12 +84,10 @@ class Kaylans(object):
     def nobs(self,tractor, prefix='',savefig=False):
         '''make histograms of nobs so can compare depths of g,r,z between the two catalogues
         tractor -- Tractor catalogue in a table'''   
-        hi= np.max((tractor.get('nobs_g'),
-                    tractor.get('nobs_r'),
-                    tractor.get('nobs_z')),axis=1).max()
+        hi= np.max(tractor.get('decam_nobs')[:,[1,2,4]])
         fig,ax= plt.subplots(3,1)
         for i, band,iband in zip(range(3),['g','r','z'],[1,2,4]):
-            ax[i].hist(tractor.get('nobs_%s' % band),\
+            ax[i].hist(tractor.get('decam_nobs')[:,iband],\
                        bins=hi+1,normed=True,cumulative=True,align='mid')
             xlab=ax[i].set_xlabel('nobs %s' % band, **kwargs.ax)
             ylab=ax[i].set_ylabel('CDF', **kwargs.ax)
@@ -149,8 +147,8 @@ class Kaylans(object):
         # Bin up SN values
         bin_SN={}
         for band,iband in zip(['g','r','z'],[1,2,4]):
-            bin_SN[band]= bin_up(tractor.get('mag_nodust_%s' % band), \
-                           tractor.get('flux_%s' % band)*np.sqrt(tractor.get('flux_ivar_%s' % band)),\
+            bin_SN[band]= bin_up(tractor.get('decam_mag_nodust')[:,iband], \
+                           tractor.get('decam_flux')[:,iband]*np.sqrt(tractor.get('decam_flux_ivar')[:,iband]),\
                            bin_minmax=mag_minmax)
         #setup plot
         fig,ax=plt.subplots(1,3,figsize=(9,3),sharey=True)
@@ -274,8 +272,8 @@ class Kaylans(object):
         cm_stack,stack_names=[],[]
         iband= dict(g=1,r=2,z=4)[band]
         for magmin,magmax in zip([18,20,22,23.5],[20,22,23.5,24.5]):
-            band_and_type= (ref_matched.get('mag_nodust_%s' % band) > magmin)* \
-                           (ref_matched.get('mag_nodust_%s' % band) <= magmax)*\
+            band_and_type= (ref_matched.get('decam_mag_nodust')[:,iband] > magmin)* \
+                           (ref_matched.get('decam_mag_nodust')[:,iband] <= magmax)*\
                            (ref_matched.get('type') == mytype)
             stack_names+= ["%s: %.1f < %s < %.1f" % (mytype,magmin,band,magmax)]
             cm,ans_names,all_names= self.create_stack(ans=ref_matched.get('type')[band_and_type],\
@@ -310,9 +308,9 @@ class Kaylans(object):
         # Compute Chi
         chi={} 
         for band,iband in zip(['g','r','z'],[1,2,4]):
-            chi[band]= (ref_tractor.get('flux_%s' % band)-test_tractor.get('flux_%s' % band))/\
-                       np.sqrt( np.power(ref_tractor.get('flux_ivar_%s' % band),-1)+\
-                                np.power(test_tractor.get('flux_ivar_%s' % band),-1))
+            chi[band]= (ref_tractor.get('decam_flux')[:,iband]-test_tractor.get('decam_flux')[:,iband])/\
+                       np.sqrt( np.power(ref_tractor.get('decam_flux_ivar')[:,iband],-1)+\
+                                np.power(test_tractor.get('decam_flux_ivar')[:,iband],-1))
         for b_low,b_hi in zip([21,22,23.5,20,18],[22,23.5,24.5,25,20]):
             #loop over mag bins, one 3 panel for each mag bin
             hist= dict(g=0,r=0,z=0)
@@ -320,8 +318,8 @@ class Kaylans(object):
             stats=dict(g=0,r=0,z=0)
             # Counts per bin
             for band,iband in zip(['g','r','z'],[1,2,4]):
-                imag= np.all((b_low <= ref_tractor.get('mag_nodust_%s' % band),\
-                              ref_tractor.get('mag_nodust_%s' % band) < b_hi),axis=0)
+                imag= np.all((b_low <= ref_tractor.get('decam_mag_nodust')[:,iband],\
+                              ref_tractor.get('decam_mag_nodust')[:,iband] < b_hi),axis=0)
                 hist[band],bins= np.histogram(chi[band][imag],\
                                         range=(low,hi),bins=50,normed=True)
                 db= (bins[1:]-bins[:-1])/2
@@ -355,9 +353,9 @@ class Kaylans(object):
                          prefix='',savefig=False,ylim=[-0.1,0.1]):
         fig,ax=plt.subplots(1,3,figsize=(12,3),sharey=True)
         plt.subplots_adjust(wspace=0.2)
-        for cnt,iband,band in zip(range(3),[1,2,4],['g','r','z']):
-            delta= ref_tractor.get('mag_nodust_%s' % band) - test_tractor.get('mag_nodust_%s' % band)
-            ax[cnt].scatter(ref_tractor.get('mag_nodust_%s' % band),delta,\
+        for cnt,iband in zip(range(3),[1,2,4]):
+            delta= ref_tractor.get('decam_mag_nodust')[:,iband] - test_tractor.get('decam_mag_nodust')[:,iband]
+            ax[cnt].scatter(ref_tractor.get('decam_mag_nodust')[:,iband],delta,\
                             c='none',facecolors='none',edgecolors='b',s=2,marker='o') 
         for cnt,band,maglim in zip(range(3),['g','r','z'],[24.5,23.5,22.]):
             xlab=ax[cnt].set_xlabel('%s (%s)' % (band,ref_name), **kwargs.ax)
@@ -402,15 +400,13 @@ class Kaylans(object):
 def noJunk(cat):
     '''cat is a fits_table object
     keep only S/N>5 '''
-    i = (cat.get('brick_primary'))
-    for band in ['g','r','z']:
-        i *= (cat.get('anymask_%s' % band)==0) *\
-             (cat.get('flux_%s' % band)>0)*\
-             (cat.get('flux_ivar_%s' % band))
-    # SN > 25
-    for band in ['g','r','z']:
-        i *= ( cat.get('flux_%s' % band) * \
-               np.sqrt(cat.get('flux_ivar_%s' % band)) > 25 )
+    i = (cat.get('brick_primary')) & (cat.get('decam_anymask')[:,1]==0) & \
+        (cat.get('decam_anymask')[:,2]==0) & (cat.get('decam_anymask')[:,4]==0) & \
+        (cat.get('decam_flux')[:,1]>0)  &  (cat.get('decam_flux')[:,2]>0) &  \
+        (cat.get('decam_flux')[:,4]>0) & \
+        (cat.get('decam_flux_ivar')[:,1]*(cat.get('decam_flux')[:,1])**2>25)  & \
+        (cat.get('decam_flux_ivar')[:,2]*(cat.get('decam_flux')[:,2])**2>25)  & \
+        (cat.get('decam_flux_ivar')[:,4]*(cat.get('decam_flux')[:,4])**2>25)
     return i
 
 def areaCat(cat):
@@ -465,15 +461,15 @@ class EnriqueCosmos(object):
             wb ={"g":1,"r":2,"z":4}
             w = int(wb[band])
             print "band,w=", band,w,N1,N2
-            mag_dr2 = dr2.get('mag_nodust_%s' % band)
-            mag_dr3 = dr3.get('mag_nodust_%s' % band) 
-            mag_mean = 22.5 - 2.5 * np.log10((dr2.get('flux_%s' % band) + dr3.get('flux_%s' % band))/2.)
+            mag_dr2 = dr2.get('decam_mag_nodust')
+            mag_dr3 = dr3.get('decam_mag_nodust')
+            mag_mean = 22.5 - 2.5 * np.log10((dr2.get('decam_flux')[:,w] + dr3.get('decam_flux')[:,w])/2.)
 
-            iv_dr2 = dr2.get('flux_ivar_%s' % band)
-            iv_dr3 = dr3.get('flux_ivar_%s' % band)
+            iv_dr2 = dr2.get('decam_flux_ivar')[:,w]
+            iv_dr3 = dr3.get('decam_flux_ivar')[:,w]
 
-            df = dr3.get('flux_%s' % band) - dr2.get('flux_%s' % band)
-            sigma = (1./dr2.get('flux_ivar_%s' % band) + 1./dr3.get('flux_ivar_%s' % band))**(0.5)
+            df = dr3.get('decam_flux')[:,w] - dr2.get('decam_flux')[:,w]
+            sigma = (1./dr2.get('decam_flux_ivar')[:,w] + 1./dr3.get('decam_flux_ivar')[:,w])**(0.5)
 
             plt.figure(2,(5,5))
             plt.axes([0.17,0.15,0.75,0.75])
@@ -490,8 +486,8 @@ class EnriqueCosmos(object):
             xbands=xwb.keys()
             for xband in xbands:   # apply magnitude cuts in all bands
                 wx= int(xwb[xband])
-                mag_mean2 = 22.5 - 2.5 * np.log10((dr2.get('flux_%s' % xband) + \
-                                                   dr3.get('decam_flux_%s' % xband))/2.)
+                mag_mean2 = 22.5 - 2.5 * np.log10((dr2.get('decam_flux')[:,wx] + \
+                                                   dr3.get('decam_flux')[:,wx])/2.)
                 maglo2,maghi2 = maglimits[xband]
                 ok = (ok) & (mag_mean2 > maglo2) & (mag_mean2 < maghi2)
             
@@ -503,8 +499,8 @@ class EnriqueCosmos(object):
             ib= 0
             for xband in xbands:  # estimate covariance in xcor
                 wx= int(xwb[xband])          
-                dfx = dr3.get('flux_%s' % xband) - dr2.get('flux_%s' % xband)
-                sigmax = (1./dr2.get('flux_ivar_%s' % xband) + 1./dr3.get('flux_ivar_%s' % xband))**(0.5)
+                dfx = dr3.get('decam_flux')[:,wx] - dr2.get('decam_flux')[:,wx]
+                sigmax = (1./dr2.get('decam_flux_ivar')[:,wx] + 1./dr3.get('decam_flux_ivar')[:,wx])**(0.5)
                 sigx = dfx[ok] / sigmax[ok]
                 meanx_df=sum(sigx)/len(sigx)
                 sigmax_df=(sum((sigx-meanx_df)**2)/len(sigx))**(0.5)
@@ -540,8 +536,8 @@ class EnriqueCosmos(object):
             ib= 0
             for xband in xbands:
                 wx= int(xwb[xband])
-                dfx = dr3.get('flux_%s' % xband) - dr2.get('flux_%s' % xband)
-                sigmax = (1./dr2.get('flux_ivar_%s' % xband) + 1./dr3.get('flux_ivar_%s' % band))**(0.5)
+                dfx = dr3.get('decam_flux')[:,wx] - dr2.get('decam_flux')[:,wx]
+                sigmax = (1./dr2.get('decam_flux_ivar')[:,wx] + 1./dr3.get('decam_flux_ivar')[:,wx])**(0.5)
                 sigx = dfx[ok2] / sigmax[ok2]
                 meanx_df=sum(sigx)/len(sigx)
                 sigmax_df=(sum((sigx-meanx_df)**2)/len(sigx))**(0.5)
@@ -639,12 +635,12 @@ class Dustins(object):
             K = np.flatnonzero(self.cuts.good[band]) 
 
             print('Median mw_trans', band, 'is',
-                  np.median(matched1.get('mw_transmission_%s' % band)))
-            ax[cnt].errorbar(matched1.get('flux_%s' % band)[K],
-                         matched2.get('flux_%s' % band)[K],
+                  np.median(matched1.decam_mw_transmission[:,iband]))
+            ax[cnt].errorbar(matched1.decam_flux[K,iband],
+                         matched2.decam_flux[K,iband],
                          fmt='.', color=cc,
-                         xerr=1./np.sqrt(matched1.get('flux_ivar_%s' % band)[K]),
-                         yerr=1./np.sqrt(matched2.get('flux_ivar_%s' % band)[K]),
+                         xerr=1./np.sqrt(matched1.decam_flux_ivar[K,iband]),
+                         yerr=1./np.sqrt(matched2.decam_flux_ivar[K,iband]),
                          alpha=0.1,
                          )
             ax[cnt].set_xlabel('%s flux: %s' % (ref_name, band))
@@ -662,17 +658,17 @@ class Dustins(object):
             K = np.flatnonzero(self.cuts.good[band])
             P = np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2)  
 
-            mag1, magerr1 = matched1.get('mag_nodust_%s' % band),1./np.sqrt(matched1.get('mag_ivar_nodust_%s' % band))
+            mag1, magerr1 = matched1.decam_mag_nodust[:,iband],1./np.sqrt(matched1.decam_mag_ivar_nodust[:,iband])
 
-            iv1 = matched1.get('flux_ivar_%s' % band)
-            iv2 = matched2.get('flux_ivar_%s' % band)
+            iv1 = matched1.decam_flux_ivar[:, iband]
+            iv2 = matched2.decam_flux_ivar[:, iband]
             std = np.sqrt(1./iv1 + 1./iv2)
 
             ax[cnt].plot(mag1[K],
-                     (matched2.get('flux_%s' % band)[K] - matched1.get('flux_%s' % band)[K]) / std[K],
+                     (matched2.decam_flux[K,iband] - matched1.decam_flux[K,iband]) / std[K],
                      '.', alpha=0.1, color=cc)
             ax[cnt].plot(mag1[P],
-                     (matched2.get('flux_%s' % band)[P] - matched1.get('flux_%s' % band)[P]) / std[P],
+                     (matched2.decam_flux[P,iband] - matched1.decam_flux[P,iband]) / std[P],
                      '.', alpha=0.1, color='k')
             ax[cnt].set_ylabel('(%s - %s) flux / flux errors (sigma): %s' % \
                                (obs_name, ref_name, band))
@@ -688,26 +684,26 @@ class Dustins(object):
         fig,ax= plt.subplots(1,3)
         lp,lt = [],[]
         for cnt,iband,band,cc in [(0,1,'g','g'),(1,2,'r','r'),(2,4,'z','m')]:        
-            mag1, magerr1 = matched1.get('mag_nodust_%s' % band),1./np.sqrt(matched1.get('mag_ivar_nodust_%s' % band))
+            mag1, magerr1 = matched1.decam_mag_nodust[:,iband],1./np.sqrt(matched1.decam_mag_ivar_nodust[:,iband])
 
-            iv1 = matched1.get('flux_ivar_%s' % band)
-            iv2 = matched2.get('flux_ivar_%s' % band)
+            iv1 = matched1.decam_flux_ivar[:, iband]
+            iv2 = matched2.decam_flux_ivar[:, iband]
             std = np.sqrt(1./iv1 + 1./iv2)
             #std = np.hypot(std, 0.01)
             G= np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2 *\
                               np.isfinite(mag1) *\
                               (mag1 >= 20) * (mag1 < dict(g=24, r=23.5, z=22.5)[band]))
 
-            n,b,p = ax[cnt].hist((matched2.get('flux_%s' % band)[G] -
-                              matched1.get('flux_%s' % band)[G]) / std[G],
+            n,b,p = ax[cnt].hist((matched2.decam_flux[G,iband] -
+                              matched1.decam_flux[G,iband]) / std[G],
                      range=(-4, 4), bins=50, histtype='step', color=cc,
                      normed=True)
 
-            sig = (matched2.get('flux_%s' % band)[G] -
-                   matched1.get('flux_%s' % band)[G]) / std[G]
+            sig = (matched2.decam_flux[G,iband] -
+                   matched1.decam_flux[G,iband]) / std[G]
             print('Raw mean and std of points:', np.mean(sig), np.std(sig))
             med = np.median(sig)
-            #print('sig= ',sig,'len(sig)=',len(sig))
+            print('sig= ',sig,'len(sig)=',len(sig))
             if len(sig) > 0:
                 rsigma = (np.percentile(sig, 84) - np.percentile(sig, 16)) / 2.
             else: rsigma=-1
@@ -738,12 +734,12 @@ class Dustins(object):
         fig,ax= plt.subplots(1,3)
         for cnt,iband,band,cc in [(0,1,'g','g'),(1,2,'r','r'),(2,4,'z','m')]:
             mag1, magerr1 = NanoMaggies.fluxErrorsToMagErrors(
-                matched1.get('flux_%s' % band), matched1.get('flux_ivar_%s' % band))
+                matched1.decam_flux[:,iband], matched1.decam_flux_ivar[:,iband])
             mag2, magerr2 = NanoMaggies.fluxErrorsToMagErrors(
-                matched2.get('flux_%s' % band), matched2.get('flux_ivar_%s' % band))
+                matched2.decam_flux[:,iband], matched2.decam_flux_ivar[:,iband])
 
             meanmag = NanoMaggies.nanomaggiesToMag((
-                matched1.get('flux_%s' % band) + matched2.get('flux_%s' % band)) / 2.)
+                matched1.decam_flux[:,iband] + matched2.decam_flux[:,iband]) / 2.)
 
             K = np.flatnonzero(self.cuts.good[band])
             P = np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2)
@@ -764,12 +760,12 @@ class Dustins(object):
         fig,ax= plt.subplots(1,3)
         for cnt,iband,band,cc in [(0,1,'g','g'),(1,2,'r','r'),(2,4,'z','m')]:
             mag1, magerr1 = NanoMaggies.fluxErrorsToMagErrors(
-                matched1.get('flux_%s' % band), matched1.get('flux_ivar_%s' % band))
+                matched1.decam_flux[:,iband], matched1.decam_flux_ivar[:,iband])
             mag2, magerr2 = NanoMaggies.fluxErrorsToMagErrors(
-                matched2.get('flux_%s' % band), matched2.get('flux_ivar_%s' % band))
+                matched2.decam_flux[:,iband], matched2.decam_flux_ivar[:,iband])
 
             meanmag = NanoMaggies.nanomaggiesToMag((
-                matched1.get('flux_%s' % band) + matched2.get('flux_%s' % band)) / 2.)
+                matched1.decam_flux[:,iband] + matched2.decam_flux[:,iband]) / 2.)
 
             K = np.flatnonzero(self.cuts.good[band])
             P = np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2)
@@ -790,12 +786,12 @@ class Dustins(object):
         fig,ax= plt.subplots(1,3)
         for cnt,iband,band,cc in [(0,1,'g','g'),(1,2,'r','r'),(2,4,'z','m')]:
             mag1, magerr1 = NanoMaggies.fluxErrorsToMagErrors(
-                matched1.get('flux_%s' % band), matched1.get('flux_ivar_%s' % band))
+                matched1.decam_flux[:,iband], matched1.decam_flux_ivar[:,iband])
             mag2, magerr2 = NanoMaggies.fluxErrorsToMagErrors(
-                matched2.get('flux_%s' % band), matched2.get('flux_ivar_%s' % band))
+                matched2.decam_flux[:,iband], matched2.decam_flux_ivar[:,iband])
 
             meanmag = NanoMaggies.nanomaggiesToMag((
-                matched1.get('flux_%s' % band) + matched2.get('flux_%s' % band)) / 2.)
+                matched1.decam_flux[:,iband] + matched2.decam_flux[:,iband]) / 2.)
 
             K = np.flatnonzero(self.cuts.good[band])
             P = np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2)
@@ -820,12 +816,12 @@ class Dustins(object):
         fig,ax= plt.subplots(1,3)
         for cnt,iband,band,cc in [(0,1,'g','g'),(1,2,'r','r'),(2,4,'z','m')]:
             mag1, magerr1 = NanoMaggies.fluxErrorsToMagErrors(
-                matched1.get('flux_%s' % band), matched1.get('flux_ivar_%s' % band))
+                matched1.decam_flux[:,iband], matched1.decam_flux_ivar[:,iband])
             mag2, magerr2 = NanoMaggies.fluxErrorsToMagErrors(
-                matched2.get('flux_%s' % band), matched2.get('flux_ivar_%s' % band))
+                matched2.decam_flux[:,iband], matched2.decam_flux_ivar[:,iband])
 
             meanmag = NanoMaggies.nanomaggiesToMag((
-                matched1.get('flux_%s' % band) + matched2.get('flux_%s' % band)) / 2.)
+                matched1.decam_flux[:,iband] + matched2.decam_flux[:,iband]) / 2.)
 
             K = np.flatnonzero(self.cuts.good[band])
             P = np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2)
@@ -874,9 +870,9 @@ class Dustins(object):
             mhi = dict(g=24., r=23.5, z=22.5)[band]
             I = P[(meanmag[P] >= mlo) * (meanmag[P] < mhi)]
             print('y=',y)
-            #print('I=',I)
+            print('I=',I)
             ybin = y[I]
-            #print('ybin =',ybin)
+            print('ybin =',ybin)
             if len(ybin) > 0:
                 iqd = np.percentile(ybin, 75) - np.percentile(ybin, 25)
             else: iqd=-1
@@ -940,12 +936,12 @@ class Dustins(object):
         fig,ax= plt.subplots(1,3)
         for cnt,iband,band,cc in [(0,1,'g','g'),(1,2,'r','r'),(2,4,'z','m')]:
             mag1, magerr1 = NanoMaggies.fluxErrorsToMagErrors(
-                matched1.get('flux_%s' % band), matched1.get('flux_ivar_%s' % band))
+                matched1.decam_flux[:,iband], matched1.decam_flux_ivar[:,iband])
             mag2, magerr2 = NanoMaggies.fluxErrorsToMagErrors(
-                matched2.get('flux_%s' % band), matched2.get('flux_ivar_%s' % band))
+                matched2.decam_flux[:,iband], matched2.decam_flux_ivar[:,iband])
 
             meanmag = NanoMaggies.nanomaggiesToMag((
-                matched1.get('flux_%s' % band) + matched2.get('flux_%s' % band)) / 2.)
+                matched1.decam_flux[:,iband] + matched2.decam_flux[:,iband]) / 2.)
 
             K = np.flatnonzero(self.cuts.good[band])
             P = np.flatnonzero(self.cuts.good[band] * self.cuts.psf1 * self.cuts.psf2)
