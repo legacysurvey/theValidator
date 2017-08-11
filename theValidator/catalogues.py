@@ -422,7 +422,26 @@ class TargetTruth(object):
         print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'qso-dr3sweepmatched.fits'),\
                                       os.path.join(self.save_dir,'dr3-qsosweepmatched.fits')))
 
-
-
-
-
+    def get_acs_six_col(self):
+        savenm= os.path.join(self.save_dir,'acs_six_cols.fits')
+        if not os.path.exists(savenm):
+            acsfn=os.path.join(self.save_dir,'ACS-GC_published_catalogs',
+                               'acs_public_galfit_catalog_V1.0.fits.gz')
+            acs=fits_table(acsfn) 
+            # Repackage
+            tab= fits_table()
+            for key in ['ra','dec','re_galfit_hi','n_galfit_hi',
+                        'ba_galfit_hi','pa_galfit_hi']:
+                tab.set(key, acs.get(key))
+            # Cuts & clean
+            tab.cut( tab.flag_galfit_hi == 0 )
+            # -90,+90 --> 0,180 
+            tab.pa_galfit_hi += 90. 
+            # Save
+            tab.writeto(savenm)
+            print('Wrote %s' % savenm)
+            # Save
+            qso.writeto(os.path.join(self.save_dir,'qso-dr3sweepmatched.fits'))
+            dr3.writeto(os.path.join(self.save_dir,'dr3-qsosweepmatched.fits'))
+            print('Wrote %s\nWrote %s' % (os.path.join(self.save_dir,'qso-dr3sweepmatched.fits'),\
+                                          os.path.join(self.save_dir,'dr3-qsosweepmatched.fits')))
