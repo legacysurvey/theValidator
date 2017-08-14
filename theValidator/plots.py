@@ -58,26 +58,28 @@ def bin_up(data_bin_by,data_for_percentile, bin_minmax=(18.,26.),nbins=20):
 class Kaylans(object):
     def __init__(self,ref_cat,obs_cat,imatch,\
                  ref_name='ref',obs_name='obs',savefig=False,\
-                 plot_all=True):
+                 plot_all=True, oldformat_any=False):
         ##plot_all(self,ref_cat,obs_cat,\
         ##plot_all(self,ref_cat,obs_cat,\
         ##        ref_name='ref',obs_name='obs')
         if plot_all:
-            self.nobs(ref_cat,savefig=savefig) 
-            self.sn_vs_mag(ref_cat, mag_minmax=(18.,26.),savefig=savefig)
+            if not oldformat_any: 
+                self.nobs(ref_cat,savefig=savefig) 
+                self.sn_vs_mag(ref_cat, mag_minmax=(18.,26.),savefig=savefig)
             self.barchart(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
                           ref_name=ref_name,obs_name=obs_name,savefig=savefig,prefix='alldata')
             self.radec(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
                        ref_name=ref_name,obs_name=obs_name,savefig=savefig)
             self.confusion_matrix(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
                                    ref_name=ref_name,obs_name=obs_name,savefig=savefig)
-            for mytype in ['PSF','SIMP','DEV','COMP']:
-                self.stacked_confusion_matrix(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
-                                       ref_name=ref_name,obs_name=obs_name,savefig=savefig,\
-                                       band='z',mytype=mytype)
-            self.delta_mag_vs_mag(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
-                                  ref_name=ref_name,obs_name=obs_name,savefig=savefig,ylim=[-0.2,0.2])
-            self.chi_v_gaussian(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
+            if not oldformat_any: 
+                for mytype in ['PSF','SIMP','DEV','COMP']:
+                    self.stacked_confusion_matrix(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
+                                           ref_name=ref_name,obs_name=obs_name,savefig=savefig,\
+                                           band='z',mytype=mytype)
+                self.delta_mag_vs_mag(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
+                                      ref_name=ref_name,obs_name=obs_name,savefig=savefig,ylim=[-0.2,0.2])
+                self.chi_v_gaussian(ref_cat[ imatch['ref'] ],obs_cat[ imatch['obs'] ],\
                                  low=-4.,hi=4.,savefig=savefig) 
         
     
@@ -594,7 +596,7 @@ class EnriqueCosmos(object):
 class Dustins(object):
     def __init__(self,ref_cat,obs_cat,imatch,d2d,\
                  ref_name='ref',obs_name='obs',savefig=False,\
-                 plot_all=True):
+                 plot_all=True, oldformat_any=False):
         #plot_all(self,ref_cat,obs_cat,
         #        ref_name='ref',obs_name='obs')
         self.outdir='./'
