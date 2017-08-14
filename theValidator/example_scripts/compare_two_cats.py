@@ -29,18 +29,20 @@ args = parser.parse_args()
 ref= CatalogueFuncs().stack(args.ref_cat_list, shuffle_1000=args.shuffle_1000)
 obs= CatalogueFuncs().stack(args.obs_cat_list, shuffle_1000=args.shuffle_1000)
 
+print('matching')
 imatch,imiss,d2d= Matcher().match_within(ref,obs) #,dist=1./3600)
 # Old or New format
-if hasattr(ref,'decam_flux'):
-    print('yes')
-    CatalogueFuncs().set_mags_OldDataModel(ref)
-else:
-    CatalogueFuncs().set_mags(ref)
-if hasattr(obs,'decam_flux'):
-    CatalogueFuncs().set_mags_OldDataModel(obs)
-else:
-    print('yes')
-    CatalogueFuncs().set_mags(obs)
+if False:
+    if hasattr(ref,'decam_flux'):
+        print('yes')
+        CatalogueFuncs().set_mags_OldDataModel(ref)
+    else:
+        CatalogueFuncs().set_mags(ref)
+    if hasattr(obs,'decam_flux'):
+        CatalogueFuncs().set_mags_OldDataModel(obs)
+    else:
+        print('yes')
+        CatalogueFuncs().set_mags(obs)
 # Plots 
 oldformat_any=False
 if hasattr(ref,'decam_flux') or hasattr(obs,'decam_flux'):

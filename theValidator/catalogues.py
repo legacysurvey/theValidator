@@ -5,6 +5,7 @@ from glob import glob
 import os
 from astropy import units
 from astropy.coordinates import SkyCoord
+from astrometry.libkd.spherematch import match_radec
 
 from astrometry.util.fits import fits_table, merge_tables
 from tractor.brightness import NanoMaggies
@@ -28,11 +29,12 @@ class CatalogueFuncs(object):
             fns= fn_list
         if len(fns) < 1: raise ValueError('Error: fns=',fns)
         if shuffle_1000:
+            print('ShUFFLING')
             seed=7
             np.random.seed(seed)
             inds= np.arange(len(fns)) 
-            inds= np.random.shuffle(inds) 
-            fns= fns[inds][0]
+            np.random.shuffle(inds) 
+            fns= fns[inds]
         cats= []
         for i,fn in enumerate(fns):
             print('reading %s %d/%d' % (fn,i+1,len(fns)))
@@ -167,18 +169,23 @@ class Matcher(object):
     def match_within(self,ref,obs,dist=1./3600):
         '''Find obs ra,dec that are within dist of ref ra,dec
         default=1 arcsec'''
-        # cat1 --> ref cat
-        # cat2 --> cat matching to the ref cat
-        cat1 = SkyCoord(ra=ref.get('ra')*units.degree, dec=ref.get('dec')*units.degree)
-        cat2 = SkyCoord(ra=obs.get('ra')*units.degree, dec=obs.get('dec')*units.degree)
-        idx, d2d, d3d = cat1.match_to_catalog_3d(cat2)
-        b= np.array(d2d) <= dist
         # Return 4 index arrays for indices where matches and where missing
         imatch=dict(ref=[],obs=[])
         imiss=dict(ref=[],obs=[])
+        # cat1 --> ref cat
+        # cat2 --> cat matching to the ref cat
+        #if False:
+        #    cat1 = SkyCoord(ra=ref.get('ra')*units.degree, dec=ref.get('dec')*units.degree)
+        #    cat2 = SkyCoord(ra=obs.get('ra')*units.degree, dec=obs.get('dec')*units.degree)
+        #    idx, d2d, d3d = cat1.match_to_catalog_3d(cat2)
+        #    b= np.array(d2d) <= dist
+        #    imatch['ref']= np.arange(len(ref))[b]
+        #    imatch['obs']= np.array(idx)[b]
+        I,J,d2d = match_radec(ref.ra,ref.dec, obs.ra,obs.dec, dist,
+                              nearest=True)
+        imatch['ref']= I
+        imatch['obs']= J
         # 
-        imatch['ref']= np.arange(len(ref))[b]
-        imatch['obs']= np.array(idx)[b]
         print("Matched: %d/%d objects" % (imatch['ref'].size,len(ref)))
         imiss['ref'] = np.delete(np.arange(len(ref)), imatch['ref'], axis=0)
         imiss['obs'] = np.delete(np.arange(len(obs)), imatch['obs'], axis=0)

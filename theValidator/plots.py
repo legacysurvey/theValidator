@@ -124,14 +124,15 @@ class Kaylans(object):
         c1= 'b'
         c2= 'r'
         ###
-        types= ['PSF','SIMP','EXP','DEV','COMP']
+        types= ['PSF','REX','SIMP','EXP','DEV','COMP']
+        ntypes= len(types)
         ind = np.arange(len(types))  # the x locations for the groups
-        width = 0.35       # the width of the bars
+        width = 0.2       # the width of the bars
         ###
-        ht_ref, ht_obs= np.zeros(5,dtype=int),np.zeros(5,dtype=int)
+        ht_ref, ht_obs= np.zeros(ntypes,dtype=int),np.zeros(ntypes,dtype=int)
         for cnt,typ in enumerate(types):
-            ht_ref[cnt]= np.where(ref_tractor.get('type') == typ)[0].shape[0]
-            ht_obs[cnt]= np.where(obs_tractor.get('type') == typ)[0].shape[0]
+            ht_ref[cnt]= np.where(np.char.strip(ref_tractor.type) == typ)[0].shape[0]
+            ht_obs[cnt]= np.where(np.char.strip(obs_tractor.type) == typ)[0].shape[0]
         ###
         fig, ax = plt.subplots()
         rects1 = ax.bar(ind, ht_ref, width, color=c1)
@@ -182,14 +183,15 @@ class Kaylans(object):
     def create_confusion_matrix(self,ref_tractor,test_tractor):
         '''compares MATCHED reference (truth) to test (prediction)
         ref_obj,test_obj -- reference,test Single_TractorCat()
-        return 5x5 confusion matrix and colum/row names'''
-        cm=np.zeros((5,5))-1
-        types=['PSF','SIMP','EXP','DEV','COMP']
+        return 6x6 confusion matrix and colum/row names'''
+        types=['PSF','REX','SIMP','EXP','DEV','COMP']
+        ntypes=len(types)
+        cm=np.zeros((ntypes,ntypes))-1
         for i_ref,ref_type in enumerate(types):
-            cut_ref= np.where(ref_tractor.get('type') == ref_type)[0]
+            cut_ref= np.where(np.char.strip(ref_tractor.type) == ref_type)[0]
             #n_ref= ref_obj.number_not_masked(['current',ref_type.lower()])
             for i_test,test_type in enumerate(types):
-                n_test= np.where(test_tractor.get('type')[ cut_ref ] == test_type)[0].size
+                n_test= np.where(np.char.strip(test_tractor.type)[ cut_ref ] == test_type)[0].size
                 if cut_ref.size > 0: cm[i_ref,i_test]= float(n_test)/cut_ref.size
                 else: cm[i_ref,i_test]= np.nan
         return cm,types
