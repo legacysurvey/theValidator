@@ -17,16 +17,28 @@ def read_lines(fn_list):
 
 class CatalogueFuncs(object):
     '''funcs for using Dustins fits_table objects'''
-    def stack(self,fn_list,textfile=True):
-        '''concatenates fits tables'''
+    def stack(self,fn_list,textfile=True,
+              shuffle_1000=False):
+        '''concatenates fits tables
+        shuffle_1000: randomly reads up to the first 1000 cats only
+        '''
         if textfile: 
             fns=read_lines(fn_list)
         else:
             fns= fn_list
         if len(fns) < 1: raise ValueError('Error: fns=',fns)
+        if shuffle_1000:
+            seed=7
+            np.random.seed(seed)
+            inds= np.arange(len(fns)) 
+            inds= np.random.shuffle(inds) 
+            fns= fns[inds][0]
         cats= []
         for i,fn in enumerate(fns):
-            print('reading %d/%d' % (i+1,len(fns)))
+            print('reading %s %d/%d' % (fn,i+1,len(fns)))
+            if shuffle_1000 and i >= 1000: 
+                print('shuffle_1000 turned ON, stopping read') 
+                break 
             try: 
                 tab= fits_table(fn) 
                 cats.append( tab )
