@@ -24,11 +24,11 @@ if __name__ == "__main__":
     parser.add_argument('--obs_cat_list',action='store',required=True,help="text file listing tractor catalogues to compare with, one per line")
     parser.add_argument('--ref_name',action='store',default='REF',required=False,help="name for reference catalogues")
     parser.add_argument('--obs_name',action='store',default='OBS',required=False,help="name for catalogues comparing to")
-    parser.add_argument('--shuffle_1000',action='store_true',default=False,required=False,help="randomly read 1000 of the N catalogues instead of all N")
+    parser.add_argument('--shuffle',type=int,default=None,required=False,help="set to an integer to randomly read of the N catalogues instead of all N")
     args = parser.parse_args()
-    
-    ref= CatalogueFuncs().stack(args.ref_cat_list, shuffle_1000=args.shuffle_1000)
-    obs= CatalogueFuncs().stack(args.obs_cat_list, shuffle_1000=args.shuffle_1000)
+
+    ref= CatalogueFuncs().stack(args.ref_cat_list, shuffle=args.shuffle)
+    obs= CatalogueFuncs().stack(args.obs_cat_list, shuffle=args.shuffle)
 
     # New naming scheme
     conv= ConvertTractor()

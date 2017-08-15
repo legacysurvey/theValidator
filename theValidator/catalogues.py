@@ -287,17 +287,19 @@ class ConvertTractor(object):
 class CatalogueFuncs(object):
     '''funcs for using Dustins fits_table objects'''
     def stack(self,fn_list,textfile=True,
-              shuffle_1000=False):
+              shuffle=None):
         '''concatenates fits tables
-        shuffle_1000: randomly reads up to the first 1000 cats only
+        shuffle: set to an integer to randomly reads up to the first "shuffle" cats only
         '''
+        if shuffle:
+            assert( isinstance(shuffle, int))
         if textfile: 
             fns=read_lines(fn_list)
         else:
             fns= fn_list
         if len(fns) < 1: raise ValueError('Error: fns=',fns)
-        if shuffle_1000:
-            print('ShUFFLING')
+        if shuffle:
+            print('shuffling %d' % shuffle)
             seed=7
             np.random.seed(seed)
             inds= np.arange(len(fns)) 
@@ -306,10 +308,10 @@ class CatalogueFuncs(object):
         cats= []
         for i,fn in enumerate(fns):
             print('reading %s %d/%d' % (fn,i+1,len(fns)))
-            if shuffle_1000 and i >= 1000: 
+            if shuffle and i >= shuffle: 
                 print('shuffle_1000 turned ON, stopping read') 
                 break 
-            try: 
+            try:
                 tab= fits_table(fn) 
                 cats.append( tab )
             except IOError:
