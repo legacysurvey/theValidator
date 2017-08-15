@@ -16,8 +16,11 @@ from scipy.optimize import curve_fit
 
 from catalogues import Cuts4MatchedCats
 
-
 # Globals
+
+MODELS=['PSF','REX','SIMP','EXP','DEV','COMP']
+
+
 class PlotKwargs(object):
     def __init__(self):
         self.ax= dict(fontweight='bold',fontsize='medium')
@@ -220,44 +223,48 @@ class Kaylans(object):
             plt.savefig('%sconfus_matrix.png' % prefix,bbox_extra_artists=[xlab,ylab], **kwargs.save)
             plt.close()
 
-    def create_stack(self,ans=np.array(['PSF','PSF','PSF']),pred=np.array(['PSF','SIMP','COMP']),\
-                     types=['PSF','SIMP','EXP','DEV','COMP'],slim=True):
+    def create_stack(self,ans=np.array(['PSF','PSF','PSF']),pred=np.array(['PSF','SIMP','COMP']),slim=True):
         '''compares classifications of matched objects, returns 2D array which is conf matrix and xylabels
         return 5x5 confusion matrix and colum/row names
        answer_type,predict_type -- arrays of same length with reference and prediction types'''
-        for typ in set(ans): assert(typ in types)
-        for typ in set(pred): assert(typ in types)
+        for typ in set(ans): assert(typ in MODELS)
+        for typ in set(pred): assert(typ in MODELS)
         # if a type was not in answer (training) list then don't put in cm
         if slim: ans_types= set(ans)
         # put in cm regardless
-        else: ans_types= set(types)
-        cm=np.zeros((len(ans_types),len(types)))-1
+        else: ans_types= set(MODELS)
+        cm=np.zeros((len(ans_types),len(MODELS)))-1
         for i_ans,ans_type in enumerate(ans_types):
             ind= np.where(ans == ans_type)[0]
-            for i_pred,pred_type in enumerate(types):
+            for i_pred,pred_type in enumerate(MODELS):
                 n_pred= np.where(pred[ind] == pred_type)[0].size
-                if ind.size > 0: cm[i_ans,i_pred]= float(n_pred)/ind.size # ind.size is constant for loop over pred_types
-                else: cm[i_ans,i_pred]= np.nan
-        if slim: return cm,ans_types,types #size ans_types != types
-        else: return cm,types
+                if ind.size > 0:
+                    cm[i_ans,i_pred]= float(n_pred)/ind.size # ind.size is constant for loop over pred_types
+                else:
+                    cm[i_ans,i_pred]= np.nan
+        if slim:
+            return cm,ans_types #size ans_types != types
+        else:
+            return cm
 
-    def plot_stack(self,cm_stack,stack_names,all_names, \
+    def plot_stack(self,cm_stack,stack_names, \
                    ref_name='ref',obs_name='test',\
                    prefix='',savefig=False):
         '''cm_stack -- list of single row confusion matrices
         stack_names -- list of same len as cm_stack, names for each row of cm_stack'''
         # combine list into single cm
-        cm=np.zeros((len(cm_stack),len(all_names)))+np.nan
-        for i in range(cm.shape[0]): cm[i,:]= cm_stack[i]
+        cm=np.zeros((len(cm_stack),len(MODELS)))+np.nan
+        for i in range(cm.shape[0]):
+            cm[i,:]= cm_stack[i]
         # make usual cm, but labels repositioned
         plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
         cbar=plt.colorbar()
-        plt.xticks(range(len(all_names)), all_names)
+        plt.xticks(range(len(MODELS)), MODELS)
         plt.yticks(range(len(stack_names)), stack_names)
         ylab=plt.ylabel('True (%s)' % ref_name)
         xlab=plt.xlabel('Predicted (%s)' % obs_name)
         for row in range(len(stack_names)):
-            for col in range(len(all_names)):
+            for col in range(len(MODELS)):
                 if np.isnan(cm[row,col]):
                     plt.text(col,row,'n/a',va='center',ha='center')
                 elif cm[row,col] > 0.5:
@@ -282,14 +289,15 @@ class Kaylans(object):
                            (ref_matched.get('mag_nodust_%s' % band) <= magmax)*\
                            (ref_matched.get('type') == mytype)
             stack_names+= ["%s: %.1f < %s < %.1f" % (mytype,magmin,band,magmax)]
-            cm,ans_names,all_names= self.create_stack(ans=ref_matched.get('type')[band_and_type],\
-                                                      pred=obs_matched.get('type')[band_and_type])
+            cm,ans_names= self.create_stack(ans=ref_matched.get('type')[band_and_type],\
+                                            pred=obs_matched.get('type')[band_and_type])
             # If band_and_type is empty, fill with -1
             if len(cm) == 0: 
-                cm,ans_names= np.zeros((1,5))-1, set([mytype])
+                cm,ans_names= np.zeros((1,len(MODELS)))-1, set([mytype])
             cm_stack+= [cm]
-        self.plot_stack(cm_stack, stack_names,all_names, \
-                   ref_name=ref_name,obs_name=obs_name,prefix='%s%s-%s-' % (prefix,mytype,band),savefig=savefig)
+        self.plot_stack(cm_stack, stack_names,\
+                        ref_name=ref_name,obs_name=obs_name,
+                        prefix='%s%s-%s-' % (prefix,mytype,band),savefig=savefig)
 
 
     def matched_dist(self,obj,dist, prefix=''):
