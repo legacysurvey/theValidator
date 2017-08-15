@@ -32,7 +32,7 @@ class ConvertTractor(object):
         #T = fits_table(fn)
         #hdr = T.get_header()
         #primhdr = fitsio.read_header(fn)
-        os.environ['DUST_DIR']= '/home/kaylan/myrepo/dust'
+        #os.environ['DUST_DIR']= '/home/kaylan/myrepo/dust'
         #outfn=fn.replace('.fits','-newformat.fits')
         return self.format_catalog(T, 'ugrizY', outfn=None,
                                    in_flux_prefix="decam_",
